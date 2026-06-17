@@ -1,0 +1,31 @@
+[plugin]
+enabled = true
+config_version = "0.1.0"
+
+[xmpp_server]
+host = "127.0.0.1"
+port = 5223
+jid = "rote.c-ri.apc@rtc.com"
+password = "cccp19171991"
+resource = "maibot"
+use_tls = true
+heartbeat_interval = 0.0
+reconnect_delay_sec = 5.0
+action_timeout_sec = 15.0
+connection_id = ""
+
+[chat]
+enable_chat_list_filter = true
+show_dropped_chat_list_messages = false
+group_list_type = "blacklist"
+group_list = []
+private_list_type = "blacklist"
+private_list = []
+ban_user_id = []
+
+[filters]
+ignore_self_message = true
+regex_filter_enabled = false
+regex_filter_mode = "blacklist"
+regex_filter_patterns = []
+regex_filter_show_dropped = false

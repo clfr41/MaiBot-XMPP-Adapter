@@ -1,0 +1,35 @@
+{
+  "manifest_version": 2,
+  "version": "0.1.0",
+  "name": "XMPP_Adapter 适配器",
+  "description": "插件版 XMPP 适配器，提供与 XMPP 服务器的连接功能。",
+  "author": {
+    "name": "clfr41",
+    "url": "https://github.com/clfr41"
+  },
+  "license": "GPL-v3.0-or-later",
+  "urls": {
+    "repository": "https://github.com/clfr41/MaiBot-XMPP-Adapter",
+    "homepage": "https://github.com/clfr41/MaiBot-XMPP-Adapter",
+    "documentation": "https://github.com/clfr41/MaiBot-XMPP-Adapter",
+    "issues": "https://github.com/clfr41/MaiBot-XMPP-Adapter/issues"
+  },
+  "host_application": {
+    "min_version": "1.0.0",
+    "max_version": "1.0.0"
+  },
+  "sdk": {
+    "min_version": "2.0.0",
+    "max_version": "2.99.99"
+  },
+  "dependencies": [],
+  "capabilities": [],
+  "i18n": {
+    "default_locale": "zh-CN",
+    "supported_locales": [
+      "zh-CN",
+      "en-US"
+    ]
+  },
+  "id": "maibot-team.xmpp-adapter"
+}
