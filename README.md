@@ -1,5 +1,5 @@
 ```markdown
-# XMPP 适配器插件 (maibot-team.xmpp-adapter) v0.1.0
+# XMPP 适配器插件 (maibot-xmpp-adapter) v0.1.0
 
 > **让 MaiBot 通过 XMPP 协议收发消息。**
 >
@@ -14,7 +14,7 @@
 将插件目录放入 MaiBot 的 `plugins/` 目录下，最终目录结构应为：
 
 plugins/
-└── maibot-team.xmpp-adapter/
+└── maibot-xmpp-adapter/
     ├── _manifest.json
     ├── config.toml
     ├── plugin.py
@@ -33,7 +33,7 @@ uv pip install slixmpp
 
 ### 步骤 3：配置并启用
 
-编辑 `plugins/maibot-team.xmpp-adapter/config.toml`，填入 XMPP 服务器信息和机器人账号，然后启用插件。详见下文“快速开始”。
+编辑 `plugins/maibot-xmpp-adapter/config.toml`，填入 XMPP 服务器信息和机器人账号，然后启用插件。详见下文“快速开始”。
 
 ---
 
@@ -89,7 +89,7 @@ pip install slixmpp
 
 ### 2. 配置账号信息
 
-编辑 `plugins/maibot-team.xmpp-adapter/config.toml`：
+编辑 `plugins/maibot-xmpp-adapter/config.toml`：
 
 ```toml
 [plugin]
