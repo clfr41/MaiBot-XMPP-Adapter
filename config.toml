@@ -4,9 +4,9 @@ config_version = "0.1.0"
 
 [xmpp_server]
 host = "127.0.0.1"
-port = 5223
-jid = "rote.c-ri.apc@rtc.com"
-password = "cccp19171991"
+port = 5222
+jid = "bot@example.com"
+password = "your_password"
 resource = "maibot"
 use_tls = true
 heartbeat_interval = 0.0
