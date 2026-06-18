@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict
 from uuid import uuid4
 
 import time
 
-from ...services import XmppQueryService
 from ...types import XmppPayload, XmppSegment, XmppSegments
 from .text import XmppInboundTextMixin
 
@@ -15,15 +14,13 @@ from .text import XmppInboundTextMixin
 class XmppInboundCodec(XmppInboundTextMixin):
     """XMPP 入站消息编码器。"""
 
-    def __init__(self, logger: Any, query_service: XmppQueryService) -> None:
+    def __init__(self, logger: Any) -> None:
         """初始化入站消息编码器。
 
         Args:
             logger: 插件日志对象。
-            query_service: XMPP 查询服务。
         """
         self._logger = logger
-        self._query_service = query_service
 
     async def build_message_dict(
         self,

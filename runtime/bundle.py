@@ -8,10 +8,10 @@ from ..codecs.inbound import XmppInboundCodec
 from ..codecs.notice import XmppNoticeCodec
 from ..codecs.outbound import XmppOutboundCodec
 from ..filters import XmppChatFilter, XmppRegexFilter
-from ..heartbeat_monitor import XmppHeartbeatMonitor
 from ..runtime_state import XmppRuntimeStateManager
-from ..services import XmppActionService, XmppQueryService
+from ..services import XmppActionService
 from ..transport import XmppTransportClient
+from .filter_pipeline import XmppInboundFilterPipeline
 
 
 @dataclass
@@ -20,11 +20,10 @@ class XmppRuntimeBundle:
 
     action_service: XmppActionService
     chat_filter: XmppChatFilter
-    heartbeat_monitor: XmppHeartbeatMonitor
+    filter_pipeline: XmppInboundFilterPipeline
     inbound_codec: XmppInboundCodec
     notice_codec: XmppNoticeCodec
     outbound_codec: XmppOutboundCodec
-    query_service: XmppQueryService
     regex_filter: XmppRegexFilter
     runtime_state: XmppRuntimeStateManager
     transport: XmppTransportClient

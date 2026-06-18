@@ -229,6 +229,8 @@ class XmppTransportClient:
         self._connection_task: Optional[asyncio.Task[None]] = None
         self._bare_jid: str = ""
         self._full_jid: str = ""
+        # 密码副本，仅在该传输层实例生命周期内驻留；stop() 时主动清零
+        self._password: str = ""
 
         # 跟踪所有通过 _safe_create_task 创建的后台任务，
         # 以便在 stop() 时统一清理
@@ -260,6 +262,8 @@ class XmppTransportClient:
         self._server_config = server_config
         self._bare_jid = server_config.jid
         self._full_jid = server_config.build_full_jid()
+        # 复制密码到传输层本地，避免 config 模型在后续生命周期中持留敏感字段
+        self._password = server_config.password
         self._logger.debug(f"传输层已配置: bare_jid={self._bare_jid} full_jid={self._full_jid}")
 
     @property
@@ -326,6 +330,10 @@ class XmppTransportClient:
 
         # 4) 通知上层连接已关闭（防止重复通知由内部守卫处理）
         await self._notify_connection_closed()
+
+        # 5) 清零传输层持有的密码副本
+        self._password = ""
+
         self._logger.debug("XmppTransportClient.stop() 清理完成")
 
     async def _cancel_pending_tasks(self) -> None:
@@ -498,7 +506,7 @@ class XmppTransportClient:
         assert self._server_config is not None, "尚未调用 configure()"
         return _AdapterXmppClient(
             self._full_jid,
-            self._server_config.password,
+            self._password,
             self,
         )
 

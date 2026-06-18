@@ -31,7 +31,7 @@ class XmppMessageApiMixin(XmppApiSupportMixin):
         """
         to_jid_str = str(to_jid or "").strip()
         body_str = str(body or "")
-        return await self._require_query_service().send_message(
+        return await self._require_action_service().send_message(
             to_jid=to_jid_str,
             body=body_str,
             message_type=message_type,
@@ -52,7 +52,7 @@ class XmppMessageApiMixin(XmppApiSupportMixin):
         Returns:
             Dict[str, Any]: 发送结果。
         """
-        return await self._require_query_service().send_presence(
+        return await self._require_action_service().send_presence(
             status=str(status or "").strip(),
             show=str(show or "").strip(),
         )
@@ -72,7 +72,7 @@ class XmppMessageApiMixin(XmppApiSupportMixin):
         Returns:
             Dict[str, Any]: 加入结果。
         """
-        return await self._require_query_service().join_muc(
+        return await self._require_action_service().join_muc(
             room_jid=str(room_jid or "").strip(),
             nickname=nickname,
         )

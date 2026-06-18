@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "name": "XMPP_Adapter 适配器",
   "description": "插件版 XMPP 适配器，提供与 XMPP 服务器的连接功能。",
   "author": {
@@ -23,7 +23,7 @@
     "max_version": "2.99.99"
   },
   "dependencies": [
-    {"name": "slixmpp"}
+    {"type": "python_package", "name": "slixmpp", "version_spec": ">=1.0.0"}
   ],
   "capabilities": [
     "message_gateway:duplex",

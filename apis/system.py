@@ -20,7 +20,7 @@ class XmppSystemApiMixin(XmppApiSupportMixin):
             Dict[str, Any]: 状态信息。
         """
         try:
-            info = await self._require_query_service().get_self_info()
+            info = await self._require_action_service().get_self_info()
             return {"success": True, "connected": True, **info}
         except Exception as exc:
             return {"success": True, "connected": False, "error": str(exc)}

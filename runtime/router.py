@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Mapping, Optional, Protocol
-
-import asyncio
+from typing import Any, Callable, Dict, Optional, Protocol
 
 from ..config import XmppPluginSettings
 from ..types import XmppPayloadDict
@@ -66,7 +64,6 @@ class XmppEventRouter:
     async def handle_transport_payload(self, payload: XmppPayloadDict) -> None:
         """处理来自传输层的消息载荷。"""
         runtime = self._require_runtime()
-        runtime.heartbeat_monitor.touch()
 
         msg_type = str(payload.get("type") or "").strip().lower()
         from_jid = str(payload.get("from_jid") or "").strip()
@@ -97,64 +94,35 @@ class XmppEventRouter:
         """
         runtime = self._require_runtime()
         settings = self._load_settings()
-
         self_id = runtime.transport.bare_jid
-        from_jid = str(payload.get("from_jid") or "").strip()
-        if not from_jid:
-            self._logger.debug("入站消息缺少 from_jid，已跳过")
+
+        # 过滤管道（步骤 1-5: 验证 JID/body、解析、自身消息、聊天名单）
+        ctx = runtime.filter_pipeline.run(
+            payload, is_group, self_id, settings.filters, settings.chat
+        )
+        if ctx is None:
             return
 
-        # 防御性过滤：无 body 的空消息（如 typing indicator / chat state notification）
-        body = str(payload.get("body") or "").strip()
-        if not body:
-            self._logger.debug(
-                f"入站消息 body 为空，已跳过: type={payload.get('type')} from={from_jid}"
-            )
-            return
-
-        # 解析发送者 bare JID 和群 JID
-        if is_group:
-            # MUC 消息: from="room@conference.example.com/nick"
-            sender_jid = self._extract_muc_sender(from_jid)
-            group_jid = self._extract_bare_jid(from_jid)
-            self._logger.debug(
-                f"MUC 消息解析: full={from_jid} -> sender={sender_jid} group={group_jid}"
-            )
-        else:
-            sender_jid = self._extract_bare_jid(from_jid)
-            group_jid = ""
-
-        if self_id and sender_jid == self_id and settings.filters.ignore_self_message:
-            self._logger.debug(f"忽略自身消息: sender={sender_jid} == self={self_id}")
-            return
-
-        if not runtime.chat_filter.is_inbound_chat_allowed(sender_jid, group_jid, settings.chat):
-            self._logger.debug(
-                f"聊天名单过滤拦截消息: sender={sender_jid} group={group_jid or '(私聊)'}"
-            )
-            return
-
+        # 构建标准消息字典（步骤 6）
         try:
             message_dict = await runtime.inbound_codec.build_message_dict(
-                payload, self_id, sender_jid, is_group, group_jid
+                payload, ctx.self_id, ctx.sender_jid, ctx.is_group, ctx.group_jid
             )
         except ValueError as exc:
             self._logger.warning(f"XMPP 入站消息格式不受支持，已丢弃: {exc}")
             return
 
+        # 正则过滤（步骤 7）
         plain_text = str(message_dict.get("processed_plain_text") or "").strip()
-        if not runtime.regex_filter.is_message_allowed(plain_text, settings.filters):
-            self._logger.debug(
-                f"正则过滤拦截消息: sender={sender_jid} "
-                f"text_len={len(plain_text)} text={plain_text[:50]!r}"
-            )
+        if not runtime.filter_pipeline.is_regex_allowed(plain_text, ctx.sender_jid, settings.filters):
             return
 
-        route_metadata = self._build_route_metadata(self_id, settings.xmpp_server.connection_id)
+        # 注入 Host（步骤 8）
+        route_metadata = self._build_route_metadata(ctx.self_id, settings.xmpp_server.connection_id)
         external_message_id = str(payload.get("id") or "").strip()
         self._logger.debug(
-            f"入站消息注入 Host: from={sender_jid} "
-            f"group={group_jid or '(私聊)'} "
+            f"入站消息注入 Host: from={ctx.sender_jid} "
+            f"group={ctx.group_jid or '(私聊)'} "
             f"msg_id={external_message_id or '(新生成)'}"
         )
         accepted = await self._gateway_capability.route_message(
@@ -203,10 +171,6 @@ class XmppEventRouter:
             )
             return
 
-        logger.debug("XMPP 消息网关路由注册成功，启用心跳监控")
-        await runtime.heartbeat_monitor.start(self_id, settings.xmpp_server.heartbeat_interval)
-        # 立即刷新心跳时间戳，避免刚启动就触发超时
-        runtime.heartbeat_monitor.touch()
         logger.info(f"XMPP 消息网关路由已激活: {self_id}")
 
     async def handle_transport_disconnected(self) -> None:
@@ -214,23 +178,9 @@ class XmppEventRouter:
         logger = self._logger
         logger.debug("传输层断开事件处理开始")
         runtime = self._require_runtime()
-        await runtime.heartbeat_monitor.stop()
         self.reset_caches()
         await runtime.runtime_state.report_disconnected()
         logger.debug("传输层断开事件处理完成")
-
-    async def handle_heartbeat_timeout(self, self_id: str) -> None:
-        """处理 XMPP 心跳长时间未更新的情况。
-
-        Args:
-            self_id: 当前机器人 JID。
-        """
-        runtime = self._require_runtime()
-        if self_id:
-            self._logger.warning(f"XMPP Bot {self_id} 心跳超时，暂时将消息网关标记为未就绪")
-        else:
-            self._logger.warning("XMPP 心跳超时，暂时将消息网关标记为未就绪")
-        await runtime.runtime_state.report_disconnected()
 
     def _require_runtime(self) -> XmppRuntimeBundle:
         """返回当前已绑定的运行时依赖。"""
@@ -248,33 +198,3 @@ class XmppEventRouter:
         if connection_id:
             route_metadata["connection_id"] = connection_id
         return route_metadata
-
-    @staticmethod
-    def _extract_bare_jid(full_jid: str) -> str:
-        """从 full JID 提取 bare JID。
-
-        Args:
-            full_jid: 完整 JID (可能含 resource)。
-
-        Returns:
-            str: bare JID。
-        """
-        return full_jid.split("/")[0] if "/" in full_jid else full_jid
-
-    @staticmethod
-    def _extract_muc_sender(muc_from: str) -> str:
-        """从 MUC 消息的 from 字段中提取发送者的 bare JID。
-
-        MUC 消息的 from 格式为: room@conference.example.com/nickname
-        但 XMPP 会在消息体内通过 occupant_id 或类似字段标识真实 JID。
-        这里做 best-effort 提取。
-
-        Args:
-            muc_from: MUC 消息的 from 字段。
-
-        Returns:
-            str: 发送者标识。
-        """
-        if "/" in muc_from:
-            return muc_from.split("/", 1)[1]
-        return muc_from

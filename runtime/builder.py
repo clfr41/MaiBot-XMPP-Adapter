@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable, Coroutine
+from typing import Any, Callable, Coroutine
 
 from ..codecs.inbound import XmppInboundCodec
 from ..codecs.notice import XmppNoticeCodec
 from ..codecs.outbound import XmppOutboundCodec
 from ..filters import XmppChatFilter, XmppRegexFilter
-from ..heartbeat_monitor import XmppHeartbeatMonitor
 from ..runtime_state import XmppRuntimeStateManager
-from ..services import XmppActionService, XmppQueryService
+from ..services import XmppActionService
 from ..transport import XmppTransportClient
 from .bundle import XmppRuntimeBundle
+from .filter_pipeline import XmppInboundFilterPipeline
 
 
 class XmppRuntimeBuilder:
@@ -35,7 +35,6 @@ class XmppRuntimeBuilder:
         on_connection_opened: Callable[[], Coroutine[Any, Any, None]],
         on_connection_closed: Callable[[], Coroutine[Any, Any, None]],
         on_payload: Callable[[dict[str, Any]], Coroutine[Any, Any, None]],
-        on_heartbeat_timeout: Callable[[str], Awaitable[None]],
     ) -> XmppRuntimeBundle:
         """创建一套完整的运行时组件。
 
@@ -43,7 +42,6 @@ class XmppRuntimeBuilder:
             on_connection_opened: 连接建立回调。
             on_connection_closed: 连接断开回调。
             on_payload: 非 echo 载荷回调。
-            on_heartbeat_timeout: 心跳超时回调。
 
         Returns:
             XmppRuntimeBundle: 已完成依赖注入的运行时组件集合。
@@ -53,6 +51,7 @@ class XmppRuntimeBuilder:
 
         chat_filter = XmppChatFilter(logger)
         regex_filter = XmppRegexFilter(logger)
+        filter_pipeline = XmppInboundFilterPipeline(logger, chat_filter, regex_filter)
         transport = XmppTransportClient(
             logger=logger,
             on_connection_opened=on_connection_opened,
@@ -62,8 +61,7 @@ class XmppRuntimeBuilder:
         logger.debug("传输层组件已创建")
 
         action_service = XmppActionService(logger, transport)
-        query_service = XmppQueryService(action_service, logger)
-        inbound_codec = XmppInboundCodec(logger, query_service)
+        inbound_codec = XmppInboundCodec(logger)
         notice_codec = XmppNoticeCodec(logger)
         logger.debug("服务层/编解码组件已创建")
 
@@ -72,21 +70,16 @@ class XmppRuntimeBuilder:
             logger=logger,
             gateway_name=self._gateway_name,
         )
-        heartbeat_monitor = XmppHeartbeatMonitor(
-            logger=logger,
-            on_timeout=on_heartbeat_timeout,
-        )
         outbound_codec = XmppOutboundCodec()
-        logger.debug("状态管理/心跳组件已创建")
+        logger.debug("状态管理/编解码组件已创建")
 
         bundle = XmppRuntimeBundle(
             action_service=action_service,
             chat_filter=chat_filter,
-            heartbeat_monitor=heartbeat_monitor,
+            filter_pipeline=filter_pipeline,
             inbound_codec=inbound_codec,
             notice_codec=notice_codec,
             outbound_codec=outbound_codec,
-            query_service=query_service,
             regex_filter=regex_filter,
             runtime_state=runtime_state,
             transport=transport,

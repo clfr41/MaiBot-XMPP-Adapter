@@ -23,7 +23,7 @@ from .apis import (
 from .config import XmppPluginSettings
 from .constants import XMPP_GATEWAY_NAME
 from .runtime import XmppEventRouter, XmppRuntimeBuilder, XmppRuntimeBundle
-from .services import XmppActionService, XmppQueryService
+from .services import XmppActionService
 
 
 class XmppAdapterPlugin(
@@ -39,15 +39,18 @@ class XmppAdapterPlugin(
     def __init__(self) -> None:
         super().__init__()
         self._action_service: Optional[XmppActionService] = None
-        self._query_service: Optional[XmppQueryService] = None
         self._event_router: Optional[XmppEventRouter] = None
         self._runtime_bundle: Optional[XmppRuntimeBundle] = None
 
     async def on_load(self) -> None:
         """插件加载时初始化连接。"""
         self.ctx.logger.debug("XMPP 适配器 on_load 触发")
-        # 开启 slixmpp 详细日志，便于排查连接故障
-        logging.getLogger("slixmpp").setLevel(logging.DEBUG)
+        # 根据配置设置 slixmpp 日志级别，DEBUG 会输出完整 stanza 内容
+        settings = self._load_settings()
+        level_name = settings.plugin.slixmpp_log_level
+        log_level = getattr(logging, level_name.upper(), logging.WARNING)
+        logging.getLogger("slixmpp").setLevel(log_level)
+        self.ctx.logger.debug(f"slixmpp 日志级别已设为: {level_name}")
         await self._restart_connection_if_needed()
         self.ctx.logger.debug("XMPP 适配器 on_load 完成")
 
@@ -99,7 +102,7 @@ class XmppAdapterPlugin(
                 f"params_to={params.get('to_jid', '')[:64]}"
             )
             response = await self._dispatch_outbound_action(
-                runtime_bundle, action_name, params
+                action_name, params
             )
         except ValueError as exc:
             # 参数解析/校验错误，属于预期内的业务异常
@@ -143,11 +146,10 @@ class XmppAdapterPlugin(
 
     async def _dispatch_outbound_action(
         self,
-        runtime_bundle: XmppRuntimeBundle,
         action_name: str,
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        transport = runtime_bundle.transport
+        action_service = self._require_action_service()
         to_jid = str(params.get("to_jid") or "").strip()
         body = str(params.get("body") or "")
         message_type = str(params.get("message_type") or "chat").strip()
@@ -158,16 +160,16 @@ class XmppAdapterPlugin(
         )
 
         if action_name in ("send_group_message", "send_private_message"):
-            return await transport.send_message(to_jid, body, message_type)
+            return await action_service.send_message(to_jid, body, message_type)
 
         if action_name == "send_presence":
             status = str(params.get("status") or "")
             show = str(params.get("show") or "")
-            return await transport.send_presence(status, show)
+            return await action_service.send_presence(status, show)
 
         if action_name == "join_muc":
             nickname = str(params.get("nickname") or "")
-            return await transport.join_muc(to_jid, nickname)
+            return await action_service.join_muc(to_jid, nickname)
 
         raise ValueError(f"未知的 XMPP 出站动作: {action_name}")
 
@@ -190,14 +192,12 @@ class XmppAdapterPlugin(
                 on_connection_opened=self._event_router.bootstrap_adapter_runtime_state,
                 on_connection_closed=self._event_router.handle_transport_disconnected,
                 on_payload=self._event_router.handle_transport_payload,
-                on_heartbeat_timeout=self._event_router.handle_heartbeat_timeout,
             )
             self._event_router.bind_runtime(self._runtime_bundle)
             self._bind_runtime_aliases(self._runtime_bundle)
 
     def _bind_runtime_aliases(self, runtime_bundle: XmppRuntimeBundle) -> None:
         self._action_service = runtime_bundle.action_service
-        self._query_service = runtime_bundle.query_service
 
     def _load_settings(self) -> XmppPluginSettings:
         return cast(XmppPluginSettings, self.config)

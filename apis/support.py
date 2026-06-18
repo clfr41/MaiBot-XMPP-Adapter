@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, TypeAlias
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, TypeAlias
 
 from maibot_sdk import API
 
 from ..types import XmppActionParamsInput, XmppActionResponse, XmppIdInput
 
 if TYPE_CHECKING:
-    from ..services import XmppActionService, XmppQueryService
+    from ..services import XmppActionService
 
 
 XmppApiIdInput: TypeAlias = XmppIdInput
@@ -18,10 +18,8 @@ XmppApiParamsInput: TypeAlias = XmppActionParamsInput
 
 class XmppApiSupportMixin:
     """XMPP API 端点共享辅助逻辑。"""
-    """XMPP API 端点共享辅助逻辑。"""
 
     _action_service: Optional["XmppActionService"]
-    _query_service: Optional["XmppQueryService"]
 
     def _ensure_runtime_components(self) -> None:
         """确保运行时组件已经初始化。"""
@@ -48,14 +46,6 @@ class XmppApiSupportMixin:
             except ValueError as exc:
                 raise ValueError(f"{field_name} 必须是{expectation}") from exc
         raise ValueError(f"{field_name} 必须是{expectation}")
-
-    def _require_query_service(self) -> "XmppQueryService":
-        """返回当前可用的 XMPP 查询服务。"""
-        self._ensure_runtime_components()
-        query_service = self._query_service
-        if query_service is None:
-            raise RuntimeError("XMPP 查询服务尚未初始化")
-        return query_service
 
     def _require_action_service(self) -> "XmppActionService":
         """返回当前可用的 XMPP 动作服务。"""

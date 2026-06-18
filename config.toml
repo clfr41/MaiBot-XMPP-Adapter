@@ -1,20 +1,21 @@
 [plugin]
 enabled = true
-config_version = "0.1.0"
+config_version = "0.1.4"
+slixmpp_log_level = "INFO"
 
 [xmpp_server]
 host = "127.0.0.1"
 port = 5222
 jid = "bot@example.com"
-password = "your-password"
+# ⚠️ 请修改为实际密码，勿在版本控制中保留真实凭据
+password = "your_password"
 resource = "maibot"
 use_tls = true
-tls_verify = false
 heartbeat_interval = 0.0
 reconnect_delay_sec = 5.0
 action_timeout_sec = 15.0
 connection_id = ""
-muc_rooms = ["room@conference.rtc.com"]
+muc_rooms = ["chatroom@conference.rtc.com"]
 muc_nickname = "maibot"
 
 [chat]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple
+from typing import Any, ClassVar, Dict, List, Literal, Optional
 
 import logging
 
@@ -69,6 +69,21 @@ class XmppPluginOptions(PluginConfigBase):
             "order": 0,
         },
     )
+    slixmpp_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
+        description="slixmpp 库的日志级别。DEBUG 会输出完整的 XMPP stanza 内容（包括消息正文和 JID），生产环境请保持 INFO 或 WARNING。",
+        json_schema_extra={
+            "hint": "DEBUG 会输出完整的 XMPP stanza 内容（包括消息正文和 JID），生产环境建议保持 INFO 或 WARNING。",
+            "i18n": _schema_i18n(
+                label_en="slixmpp log level",
+                label_ja="slixmpp ログレベル",
+                hint_en="DEBUG prints full XMPP stanza content including message body and JID. Keep INFO or WARNING in production.",
+                hint_ja="DEBUG はメッセージ本文や JID を含む完全な XMPP stanza を出力します。本番環境では INFO または WARNING を推奨。",
+            ),
+            "label": "slixmpp 日志级别",
+            "order": 1,
+        },
+    )
     config_version: str = Field(
         default=SUPPORTED_CONFIG_VERSION,
         description="当前配置结构版本。",
@@ -104,6 +119,17 @@ class XmppPluginOptions(PluginConfigBase):
 
         normalized_value = _normalize_string(value)
         return normalized_value or SUPPORTED_CONFIG_VERSION
+
+    @field_validator("slixmpp_log_level", mode="before")
+    @classmethod
+    def _normalize_slixmpp_log_level(cls, value: Any) -> str:
+        """规范化日志级别字段。"""
+        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        normalized_value = _normalize_string(value).upper()
+        if normalized_value not in valid_levels:
+            LOGGER.warning(f"无效的 slixmpp_log_level '{value}'，已回退到 'INFO'")
+            return "INFO"
+        return normalized_value
 
 
 class XmppServerConfig(PluginConfigBase):

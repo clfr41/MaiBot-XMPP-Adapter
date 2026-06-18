@@ -78,3 +78,17 @@ class XmppActionService:
         """
         self._logger.debug(f"动作服务: join_muc room={room_jid} nickname={nickname}")
         return await self._transport.join_muc(room_jid, nickname)
+
+    async def get_self_info(self) -> Dict[str, Any]:
+        """获取当前机器人信息。
+
+        Returns:
+            Dict[str, Any]: 包含 jid 等字段。
+        """
+        transport = self._transport
+        result = {
+            "jid": transport.bare_jid,
+            "full_jid": transport.full_jid,
+        }
+        self._logger.debug(f"查询服务: get_self_info -> {result}")
+        return result

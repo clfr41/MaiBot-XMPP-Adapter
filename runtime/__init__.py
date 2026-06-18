@@ -2,6 +2,7 @@
 
 from .builder import XmppRuntimeBuilder
 from .bundle import XmppRuntimeBundle
+from .filter_pipeline import XmppInboundFilterPipeline
 from .router import XmppEventRouter
 
-__all__ = ["XmppEventRouter", "XmppRuntimeBuilder", "XmppRuntimeBundle"]
+__all__ = ["XmppEventRouter", "XmppInboundFilterPipeline", "XmppRuntimeBuilder", "XmppRuntimeBundle"]

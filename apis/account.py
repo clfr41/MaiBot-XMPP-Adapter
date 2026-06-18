@@ -19,4 +19,4 @@ class XmppAccountApiMixin(XmppApiSupportMixin):
         Returns:
             Dict[str, Any]: 包含 jid 和 full_jid。
         """
-        return await self._require_query_service().get_self_info()
+        return await self._require_action_service().get_self_info()
