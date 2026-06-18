@@ -212,6 +212,21 @@ class XmppServerConfig(PluginConfigBase):
             "order": 5,
         },
     )
+    tls_verify: bool = Field(
+        default=False,
+        description="是否验证 TLS 证书。启用后将验证服务器证书的有效性和主机名。",
+        json_schema_extra={
+            "hint": "测试环境可关闭此选项以兼容自签名证书。生产环境建议启用。",
+            "i18n": _schema_i18n(
+                label_en="Verify TLS certificate",
+                label_ja="TLS 証明書を検証",
+                hint_en="Disable for self-signed certs in test environments. Enable in production.",
+                hint_ja="テスト環境では自己署名証明書のために無効にできます。本番環境では有効にしてください。",
+            ),
+            "label": "验证 TLS 证书",
+            "order": 6,
+        },
+    )
     heartbeat_interval: float = Field(
         default=0.0,
         description="已废弃：应用层心跳间隔（秒）。适配器现仅依赖传输层断连检测，设为 0 可完全禁用。",
@@ -278,6 +293,43 @@ class XmppServerConfig(PluginConfigBase):
             "placeholder": "例如：primary",
         },
     )
+    # ── MUC 自动加入配置 ──
+    muc_rooms: List[str] = Field(
+        default_factory=list,
+        description="可选：上线后自动加入的 MUC（群聊）房间 JID 列表。",
+        json_schema_extra={
+            "hint": "如需自动加入群聊，请填写完整的房间 JID，例如 room@conference.example.com。留空则不自动加入任何房间。",
+            "i18n": _schema_i18n(
+                label_en="Auto-join MUC rooms",
+                label_ja="自動参加 MUC ルーム",
+                hint_en="List of MUC room JIDs to join automatically on login. Leave empty to disable.",
+                hint_ja="ログイン時に自動的に参加する MUC ルームの JID リスト。空の場合は自動参加しません。",
+                placeholder_en="room@conference.example.com",
+                placeholder_ja="room@conference.example.com",
+            ),
+            "label": "自动加入的 MUC 房间",
+            "order": 10,
+            "placeholder": "room@conference.example.com",
+        },
+    )
+    muc_nickname: str = Field(
+        default="",
+        description="在 MUC 房间中使用的昵称，留空则自动使用 JID 的本地部分。",
+        json_schema_extra={
+            "hint": "例如 MaiBot。若不填，将使用 JID 中 @ 之前的部分。",
+            "i18n": _schema_i18n(
+                label_en="MUC nickname",
+                label_ja="MUC ニックネーム",
+                hint_en="Nickname used in MUC rooms. If empty, uses the local part of the JID.",
+                hint_ja="MUC ルームで使用するニックネーム。空の場合は JID のローカル部分を使用します。",
+                placeholder_en="MaiBot",
+                placeholder_ja="MaiBot",
+            ),
+            "label": "MUC 昵称",
+            "order": 11,
+            "placeholder": "MaiBot",
+        },
+    )
 
     def build_full_jid(self) -> str:
         """构造完整 JID（含 resource）。
@@ -301,11 +353,26 @@ class XmppServerConfig(PluginConfigBase):
         """规范化端口字段。"""
         return _normalize_positive_int(value, DEFAULT_XMPP_PORT)
 
-    @field_validator("jid", "password", "resource", "connection_id", mode="before")
+    @field_validator("jid", "password", "resource", "connection_id", "muc_nickname", mode="before")
     @classmethod
     def _normalize_text_fields(cls, value: Any) -> str:
         """规范化文本字段。"""
         return _normalize_string(value)
+
+    @field_validator("muc_rooms", mode="before")
+    @classmethod
+    def _normalize_muc_rooms(cls, value: Any) -> List[str]:
+        """规范化 MUC 房间列表。"""
+        if not isinstance(value, list):
+            return []
+        cleaned: List[str] = []
+        seen = set()
+        for item in value:
+            text = _normalize_string(item)
+            if text and text not in seen:
+                seen.add(text)
+                cleaned.append(text)
+        return cleaned
 
     @field_validator("heartbeat_interval", mode="before")
     @classmethod

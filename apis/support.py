@@ -18,6 +18,7 @@ XmppApiParamsInput: TypeAlias = XmppActionParamsInput
 
 class XmppApiSupportMixin:
     """XMPP API 端点共享辅助逻辑。"""
+    """XMPP API 端点共享辅助逻辑。"""
 
     _action_service: Optional["XmppActionService"]
     _query_service: Optional["XmppQueryService"]

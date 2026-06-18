@@ -35,16 +35,21 @@ class XmppRegexFilter:
         """
         compiled: List[Pattern[str]] = []
         source: List[str] = []
+        invalid_count = 0
         for pattern_text in patterns:
             try:
                 compiled.append(re.compile(pattern_text))
                 source.append(pattern_text)
             except re.error as exc:
-                self._logger.warning(f"XMPP 正则过滤器忽略无效正则表达式 '{pattern_text}': {exc}")
+                invalid_count += 1
+                self._logger.warning(
+                    f"XMPP 正则过滤器忽略无效正则表达式 '{pattern_text}': {exc}"
+                )
         self._compiled_patterns = compiled
         self._source_patterns = source
         self._logger.debug(
-            f"XMPP 正则过滤器已加载 {len(compiled)} 条规则: {source}"
+            f"XMPP 正则过滤器已加载 {len(compiled)} / {len(patterns)} 条规则"
+            f"{f' ({invalid_count} 条无效)' if invalid_count else ''}: {source}"
         )
 
     def is_message_allowed(self, plain_text: str, filter_config: XmppFilterConfig) -> bool:
@@ -64,34 +69,43 @@ class XmppRegexFilter:
             if filter_config.regex_filter_mode == "whitelist":
                 self._log_regex_rejection(
                     filter_config.regex_filter_show_dropped,
-                    "XMPP 白名单正则过滤器无有效规则，消息被丢弃",
+                    "XMPP 白名单正则过滤器无有效规则，所有消息被丢弃 "
+                    f"(text_len={len(plain_text)})",
                 )
                 return False
+            self._logger.debug(
+                "XMPP 黑名单正则过滤器无有效规则，放行所有消息"
+            )
             return True
 
         matched = self._matches_any_pattern(plain_text)
+        mode = filter_config.regex_filter_mode
 
-        if filter_config.regex_filter_mode == "blacklist":
-            if matched:
-                self._log_regex_rejection(
-                    filter_config.regex_filter_show_dropped,
-                    f"XMPP 消息匹配黑名单正则，消息被丢弃: {plain_text!r}",
-                )
-                return False
-            return True
+        if mode == "blacklist" and matched:
+            self._log_regex_rejection(
+                filter_config.regex_filter_show_dropped,
+                f"XMPP 消息匹配黑名单正则，消息被丢弃: {plain_text!r}",
+            )
+            return False
 
-        if not matched:
+        if mode == "whitelist" and not matched:
             self._log_regex_rejection(
                 filter_config.regex_filter_show_dropped,
                 f"XMPP 消息未匹配白名单正则，消息被丢弃: {plain_text!r}",
             )
             return False
+
+        self._logger.debug(
+            f"XMPP 正则过滤通过: mode={mode} matched={matched} "
+            f"text_len={len(plain_text)}"
+        )
         return True
 
     def _matches_any_pattern(self, text: str) -> bool:
         """判断文本是否匹配任意一条已编译的正则表达式。"""
-        for pattern in self._compiled_patterns:
+        for idx, pattern in enumerate(self._compiled_patterns):
             if pattern.search(text):
+                self._logger.debug(f"正则匹配成功: 规则 #{idx} pattern={self._source_patterns[idx]!r}")
                 return True
         return False
 
@@ -128,11 +142,18 @@ class XmppChatFilter:
         Returns:
             bool: 若消息允许继续进入 Host，则返回 ``True``。
         """
+        # 全局禁止名单检查（优先级最高）
         if sender_jid in chat_config.ban_user_id:
-            self._logger.warning(f"XMPP 用户 {sender_jid} 在全局禁止名单中，消息被丢弃")
+            self._logger.warning(
+                f"XMPP 用户 {sender_jid} 在全局禁止名单中，消息被丢弃"
+            )
             return False
 
         if not chat_config.enable_chat_list_filter:
+            self._logger.debug(
+                f"聊天名单过滤已关闭，放行: sender={sender_jid} "
+                f"group={group_jid or '(私聊)'}"
+            )
             return True
 
         if group_jid:
@@ -141,11 +162,16 @@ class XmppChatFilter:
             ):
                 self._log_chat_list_rejection(
                     chat_config.show_dropped_chat_list_messages,
-                    f"XMPP 群聊 {group_jid} 未通过聊天名单过滤，消息被丢弃",
+                    f"XMPP 群聊 {group_jid} 未通过聊天名单过滤，消息被丢弃 "
+                    f"(mode={chat_config.group_list_type})",
                 )
                 return False
+            self._logger.debug(
+                f"聊天名单过滤通过: group={group_jid} mode={chat_config.group_list_type}"
+            )
             return True
 
+        # 私聊
         if not self._is_id_allowed_by_list_policy(
             sender_jid,
             chat_config.private_list_type,
@@ -153,9 +179,14 @@ class XmppChatFilter:
         ):
             self._log_chat_list_rejection(
                 chat_config.show_dropped_chat_list_messages,
-                f"XMPP 私聊用户 {sender_jid} 未通过聊天名单过滤，消息被丢弃",
+                f"XMPP 私聊用户 {sender_jid} 未通过聊天名单过滤，消息被丢弃 "
+                f"(mode={chat_config.private_list_type})",
             )
             return False
+
+        self._logger.debug(
+            f"聊天名单过滤通过: sender={sender_jid} mode={chat_config.private_list_type}"
+        )
         return True
 
     def _log_chat_list_rejection(self, enabled: bool, message: str) -> None:

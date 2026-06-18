@@ -29,9 +29,11 @@ class XmppMessageApiMixin(XmppApiSupportMixin):
         Returns:
             Dict[str, Any]: 发送结果。
         """
+        to_jid_str = str(to_jid or "").strip()
+        body_str = str(body or "")
         return await self._require_query_service().send_message(
-            to_jid=str(to_jid or "").strip(),
-            body=str(body or ""),
+            to_jid=to_jid_str,
+            body=body_str,
             message_type=message_type,
         )
 

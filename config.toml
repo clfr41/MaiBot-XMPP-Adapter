@@ -5,14 +5,17 @@ config_version = "0.1.0"
 [xmpp_server]
 host = "127.0.0.1"
 port = 5222
-jid = "bot@example.com"
-password = "your_password"
+jid = "rote.c-ri.apc@rtc.com"
+password = "cccp19171991"
 resource = "maibot"
 use_tls = true
+tls_verify = false
 heartbeat_interval = 0.0
 reconnect_delay_sec = 5.0
 action_timeout_sec = 15.0
 connection_id = ""
+muc_rooms = ["ekuzexap@conference.rtf1ra.com"]
+muc_nickname = "rote.c-ri.apc"
 
 [chat]
 enable_chat_list_filter = true

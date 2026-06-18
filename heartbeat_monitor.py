@@ -1,7 +1,12 @@
-"""XMPP 心跳监测 - 已禁用。
+"""XMPP 心跳监测 - **已禁用**。
 
 当前版本（0.1.0）已移除应用层心跳逻辑，仅保留类接口以兼容其他组件。
 所有方法均为空操作，不会创建任何后台任务。
+
+如果未来版本需要重新启用心跳检测，请：
+1. 实现 ``_check_task`` 后台定时检查逻辑
+2. 在 ``start()`` 中根据 ``default_interval_sec > 0`` 决定是否启动
+3. 在 ``stop()`` 中取消并清理 ``_check_task``
 """
 
 from __future__ import annotations
@@ -30,12 +35,20 @@ class XmppHeartbeatMonitor:
         self._check_task: Optional[asyncio.Task[None]] = None
 
     async def start(self, self_id: str, default_interval_sec: float) -> None:
-        """启动心跳监测（已禁用，不做任何操作）。"""
-        pass
+        """启动心跳监测（已禁用，不做任何操作）。
+
+        Args:
+            self_id: 机器人 JID。
+            default_interval_sec: 心跳间隔（秒），当前版本忽略此参数。
+        """
+        self._logger.debug(
+            f"XMPP 心跳监测已禁用，跳过启动 (self_id={self_id}, "
+            f"interval={default_interval_sec})"
+        )
 
     async def stop(self) -> None:
         """停止心跳监测（已禁用，不做任何操作）。"""
-        pass
+        self._logger.debug("XMPP 心跳监测已禁用，跳过停止")
 
     def touch(self) -> None:
         """刷新心跳时间戳（已禁用，不做任何操作）。"""

@@ -31,14 +31,19 @@ class XmppQueryService:
         Returns:
             Dict[str, Any]: 发送结果。
         """
+        self._logger.debug(
+            f"查询服务: send_message to={to_jid} type={message_type} body_len={len(body)}"
+        )
         return await self._action_service.send_message(to_jid, body, message_type)
 
     async def send_presence(self, status: str = "", show: str = "") -> Dict[str, Any]:
         """发送 XMPP presence。"""
+        self._logger.debug(f"查询服务: send_presence status={status!r} show={show!r}")
         return await self._action_service.send_presence(status, show)
 
     async def join_muc(self, room_jid: str, nickname: str = "") -> Dict[str, Any]:
         """加入 MUC 房间。"""
+        self._logger.debug(f"查询服务: join_muc room={room_jid} nickname={nickname}")
         return await self._action_service.join_muc(room_jid, nickname)
 
     async def get_self_info(self) -> Dict[str, Any]:
@@ -47,8 +52,10 @@ class XmppQueryService:
         Returns:
             Dict[str, Any]: 包含 jid 等字段。
         """
-        transport = self._action_service._transport
-        return {
+        transport = self._action_service.transport
+        result = {
             "jid": transport.bare_jid,
             "full_jid": transport.full_jid,
         }
+        self._logger.debug(f"查询服务: get_self_info -> {result}")
+        return result

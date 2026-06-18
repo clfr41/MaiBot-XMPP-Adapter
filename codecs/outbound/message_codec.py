@@ -47,16 +47,18 @@ class XmppOutboundCodec:
         body = self._segment_encoder.convert_to_text(raw_message)
 
         # 群聊消息
-        if target_group_id := str(
+        target_group_id = str(
             group_info.get("group_id")
             or additional_config.get("platform_io_target_group_id")
             or ""
-        ).strip():
-            return "send_group_message", {
+        ).strip()
+        if target_group_id:
+            result = ("send_group_message", {
                 "to_jid": target_group_id,
                 "body": body,
                 "message_type": "groupchat",
-            }
+            })
+            return result
 
         # 私聊消息
         target_user_id = str(
@@ -66,7 +68,13 @@ class XmppOutboundCodec:
             or ""
         ).strip()
         if not target_user_id:
-            raise ValueError("Outbound message is missing target_user_id")
+            missing_id_msg = (
+                f"出站消息缺少 target_user_id: "
+                f"group_info={dict(group_info)} "
+                f"additional_config={dict(additional_config)} "
+                f"route={dict(route)}"
+            )
+            raise ValueError(missing_id_msg)
 
         return "send_private_message", {
             "to_jid": target_user_id,

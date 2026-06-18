@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, ClassVar, Dict, Optional, cast
 
@@ -43,21 +44,31 @@ class XmppAdapterPlugin(
         self._runtime_bundle: Optional[XmppRuntimeBundle] = None
 
     async def on_load(self) -> None:
+        """插件加载时初始化连接。"""
+        self.ctx.logger.debug("XMPP 适配器 on_load 触发")
         # 开启 slixmpp 详细日志，便于排查连接故障
         logging.getLogger("slixmpp").setLevel(logging.DEBUG)
         await self._restart_connection_if_needed()
+        self.ctx.logger.debug("XMPP 适配器 on_load 完成")
 
     async def on_unload(self) -> None:
+        """插件卸载时清理连接。"""
+        self.ctx.logger.debug("XMPP 适配器 on_unload 触发")
         await self._stop_connection()
+        self.ctx.logger.debug("XMPP 适配器 on_unload 完成")
 
     async def on_config_update(self, scope: str, config_data: Dict[str, Any], version: str) -> None:
+        """配置更新时重连。"""
         if scope != "self":
+            self.ctx.logger.debug(f"XMPP 适配器忽略非自身配置更新: scope={scope}")
             return
 
+        self.ctx.logger.debug(f"XMPP 适配器收到自身配置更新通知: version={version}")
         self.set_plugin_config(config_data)
         if version:
-            self.ctx.logger.debug(f"XMPP 适配器收到配置更新通知: {version}")
+            self.ctx.logger.debug(f"XMPP 适配器配置版本标识: {version}")
         await self._restart_connection_if_needed()
+        self.ctx.logger.debug("XMPP 适配器配置更新处理完成")
 
     @MessageGateway(
         name=XMPP_GATEWAY_NAME,
@@ -77,21 +88,53 @@ class XmppAdapterPlugin(
         del kwargs
 
         runtime_bundle = self._require_runtime_bundle()
+        action_name = "unknown"
+
         try:
-            action_name, params = runtime_bundle.outbound_codec.build_outbound_action(message, route or {})
-            response = await self._dispatch_outbound_action(runtime_bundle, action_name, params)
-        except Exception as exc:
+            action_name, params = runtime_bundle.outbound_codec.build_outbound_action(
+                message, route or {}
+            )
+            self.ctx.logger.debug(
+                f"网关出站动作: action={action_name} "
+                f"params_to={params.get('to_jid', '')[:64]}"
+            )
+            response = await self._dispatch_outbound_action(
+                runtime_bundle, action_name, params
+            )
+        except ValueError as exc:
+            # 参数解析/校验错误，属于预期内的业务异常
+            self.ctx.logger.warning(f"XMPP 出站动作参数错误: {exc}")
             return {"success": False, "error": str(exc)}
+        except RuntimeError as exc:
+            # 连接未就绪等运行时状态错误
+            self.ctx.logger.warning(f"XMPP 出站动作运行时错误: {exc}")
+            return {"success": False, "error": str(exc)}
+        except asyncio.CancelledError:
+            # 任务取消 — 让上层传播，不吞没
+            raise
+        except Exception as exc:
+            # 未知异常兜底，记录完整堆栈
+            self.ctx.logger.exception(f"XMPP 出站动作未知异常 (action={action_name}): {exc}")
+            return {"success": False, "error": f"XMPP 内部错误: {exc}"}
 
         if not response.get("success", False):
+            error_detail = str(response.get("error") or "XMPP send failed")
+            self.ctx.logger.warning(
+                f"XMPP 出站动作执行失败 (action={action_name}): {error_detail}"
+            )
             return {
                 "success": False,
-                "error": str(response.get("error") or "XMPP send failed"),
+                "error": error_detail,
             }
 
+        ext_msg_id = response.get("external_message_id")
+        self.ctx.logger.debug(
+            f"XMPP 出站动作成功: action={action_name} "
+            f"external_message_id={ext_msg_id}"
+        )
         return {
             "success": True,
-            "external_message_id": response.get("external_message_id"),
+            "external_message_id": ext_msg_id,
             "metadata": {
                 "action": action_name,
                 "adapter_callbacks": [],
@@ -108,6 +151,11 @@ class XmppAdapterPlugin(
         to_jid = str(params.get("to_jid") or "").strip()
         body = str(params.get("body") or "")
         message_type = str(params.get("message_type") or "chat").strip()
+
+        self.ctx.logger.debug(
+            f"分发出站动作: action={action_name} to={to_jid} "
+            f"type={message_type} body_len={len(body)}"
+        )
 
         if action_name in ("send_group_message", "send_private_message"):
             return await transport.send_message(to_jid, body, message_type)
@@ -155,6 +203,8 @@ class XmppAdapterPlugin(
         return cast(XmppPluginSettings, self.config)
 
     async def _restart_connection_if_needed(self) -> None:
+        """检查配置并重启 XMPP 连接。"""
+        self.ctx.logger.debug("_restart_connection_if_needed 开始")
         self._ensure_runtime_components()
         runtime_bundle = self._require_runtime_bundle()
         settings = self._load_settings()
@@ -164,6 +214,7 @@ class XmppAdapterPlugin(
             self.ctx.logger.info("XMPP 适配器保持空闲状态，因为插件或配置未启用")
             return
         if not settings.validate_runtime_config(self.ctx.logger):
+            self.ctx.logger.warning("XMPP 适配器运行时配置校验失败，跳过连接")
             return
         if not runtime_bundle.transport.is_available():
             self.ctx.logger.error("XMPP 适配器依赖 slixmpp，但当前环境未安装该依赖")
@@ -180,18 +231,29 @@ class XmppAdapterPlugin(
                 f"XMPP 正则消息过滤已启用: 模式={settings.filters.regex_filter_mode}，"
                 f"规则数={len(settings.filters.regex_filter_patterns)}"
             )
+        elif settings.filters.regex_filter_enabled:
+            self.ctx.logger.debug("XMPP 正则过滤已启用但规则列表为空")
 
+        self.ctx.logger.debug(
+            f"配置传输层: host={settings.xmpp_server.host}:{settings.xmpp_server.port} "
+            f"jid={settings.xmpp_server.jid}"
+        )
         runtime_bundle.transport.configure(settings.xmpp_server)
         await runtime_bundle.transport.start()
+        self.ctx.logger.debug("_restart_connection_if_needed 完成")
 
     async def _stop_connection(self) -> None:
+        """停止当前 XMPP 连接。"""
+        self.ctx.logger.debug("_stop_connection 开始")
         runtime_bundle = self._runtime_bundle
         if runtime_bundle is None:
+            self.ctx.logger.debug("runtime_bundle 为空，跳过停止连接")
             return
 
         await runtime_bundle.transport.stop()
         if self._event_router is not None:
             self._event_router.reset_caches()
+        self.ctx.logger.debug("_stop_connection 完成")
 
     def _require_runtime_bundle(self) -> XmppRuntimeBundle:
         self._ensure_runtime_components()

@@ -24,11 +24,14 @@ class XmppOutboundSegmentEncoder:
             return ""
 
         text_parts: List[str] = []
+        segment_types = set()
         for item in raw_message:
             if not isinstance(item, Mapping):
                 continue
 
             item_type = str(item.get("type") or "").strip()
+            segment_types.add(item_type)
+
             if item_type == "text":
                 text_parts.append(str(item.get("data") or ""))
             elif item_type == "at":
@@ -65,4 +68,5 @@ class XmppOutboundSegmentEncoder:
             else:
                 text_parts.append(f"[{item_type}]")
 
-        return "".join(text_parts)
+        result = "".join(text_parts)
+        return result

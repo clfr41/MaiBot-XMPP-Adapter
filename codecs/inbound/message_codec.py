@@ -49,11 +49,18 @@ class XmppInboundCodec(XmppInboundTextMixin):
         body = str(payload.get("body") or "").strip()
         from_jid = str(payload.get("from_jid") or "").strip()
 
+        self._logger.debug(
+            f"入站消息编码: type={message_type} from={from_jid} "
+            f"sender={sender_jid} group_jid={group_jid or '(私聊)'} "
+            f"body_len={len(body)}"
+        )
+
         # 构造消息段
         raw_message: XmppSegments = []
         if body:
             raw_message.append(self._build_text_segment(body))
         else:
+            self._logger.debug(f"入站消息 body 为空 (from={from_jid})，使用占位符")
             raw_message.append(self._build_text_segment("[empty]"))
 
         plain_text = self.build_plain_text(raw_message)
@@ -87,14 +94,22 @@ class XmppInboundCodec(XmppInboundTextMixin):
             }
 
         message_id = str(payload.get("id") or f"xmpp-{uuid4().hex}").strip()
+        is_mentioned = self._check_mention(body, self_id)
+
+        self._logger.debug(
+            f"入站消息编码完成: id={message_id} "
+            f"is_mentioned={is_mentioned} is_command={plain_text.startswith('/')} "
+            f"plain_text_len={len(plain_text)}"
+        )
+
         return {
             "message_id": message_id,
             "timestamp": str(float(timestamp_seconds)),
             "platform": "xmpp",
             "message_info": message_info,
             "raw_message": raw_message,
-            "is_mentioned": self._check_mention(body, self_id),
-            "is_at": self._check_mention(body, self_id),
+            "is_mentioned": is_mentioned,
+            "is_at": is_mentioned,  # XMPP 中 @ 检测等同于被提及
             "is_emoji": False,
             "is_picture": False,
             "is_command": plain_text.startswith("/"),
@@ -114,7 +129,6 @@ class XmppInboundCodec(XmppInboundTextMixin):
         """检查消息是否 @ 了机器人。
 
         在 XMPP 中，@ 通常表现为包含 JID 或昵称。
-        此处做简单检查。
 
         Args:
             body: 消息正文。

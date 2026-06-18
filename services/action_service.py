@@ -23,6 +23,15 @@ class XmppActionService:
         self._logger = logger
         self._transport = transport
 
+    @property
+    def transport(self) -> "XmppTransportClient":
+        """获取当前绑定的传输层客户端。
+
+        Returns:
+            XmppTransportClient: 传输层客户端实例。
+        """
+        return self._transport
+
     async def send_message(self, to_jid: str, body: str, message_type: str = "chat") -> Dict[str, Any]:
         """发送 XMPP 消息。
 
@@ -34,6 +43,9 @@ class XmppActionService:
         Returns:
             Dict[str, Any]: 发送结果。
         """
+        self._logger.debug(
+            f"动作服务: send_message to={to_jid} type={message_type} body_len={len(body)}"
+        )
         try:
             return await self._transport.send_message(to_jid, body, message_type)
         except asyncio.CancelledError:
@@ -51,6 +63,7 @@ class XmppActionService:
         Returns:
             Dict[str, Any]: 发送结果。
         """
+        self._logger.debug(f"动作服务: send_presence status={status!r} show={show!r}")
         return await self._transport.send_presence(status, show)
 
     async def join_muc(self, room_jid: str, nickname: str = "") -> Dict[str, Any]:
@@ -63,4 +76,5 @@ class XmppActionService:
         Returns:
             Dict[str, Any]: 加入结果。
         """
+        self._logger.debug(f"动作服务: join_muc room={room_jid} nickname={nickname}")
         return await self._transport.join_muc(room_jid, nickname)

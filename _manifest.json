@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "version": "0.1.0",
+  "version": "0.1.3",
   "name": "XMPP_Adapter 适配器",
   "description": "插件版 XMPP 适配器，提供与 XMPP 服务器的连接功能。",
   "author": {
@@ -22,8 +22,13 @@
     "min_version": "2.0.0",
     "max_version": "2.99.99"
   },
-  "dependencies": [],
-  "capabilities": [],
+  "dependencies": [
+    {"name": "slixmpp"}
+  ],
+  "capabilities": [
+    "message_gateway:duplex",
+    "api:adapter.xmpp"
+  ],
   "i18n": {
     "default_locale": "zh-CN",
     "supported_locales": [

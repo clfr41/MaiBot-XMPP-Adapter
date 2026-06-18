@@ -48,30 +48,38 @@ class XmppRuntimeBuilder:
         Returns:
             XmppRuntimeBundle: 已完成依赖注入的运行时组件集合。
         """
-        chat_filter = XmppChatFilter(self._logger)
-        regex_filter = XmppRegexFilter(self._logger)
+        logger = self._logger
+        logger.debug("XmppRuntimeBuilder.build() 开始构建运行时")
+
+        chat_filter = XmppChatFilter(logger)
+        regex_filter = XmppRegexFilter(logger)
         transport = XmppTransportClient(
-            logger=self._logger,
+            logger=logger,
             on_connection_opened=on_connection_opened,
             on_connection_closed=on_connection_closed,
             on_payload=on_payload,
         )
-        action_service = XmppActionService(self._logger, transport)
-        query_service = XmppQueryService(action_service, self._logger)
-        inbound_codec = XmppInboundCodec(self._logger, query_service)
-        notice_codec = XmppNoticeCodec(self._logger)
+        logger.debug("传输层组件已创建")
+
+        action_service = XmppActionService(logger, transport)
+        query_service = XmppQueryService(action_service, logger)
+        inbound_codec = XmppInboundCodec(logger, query_service)
+        notice_codec = XmppNoticeCodec(logger)
+        logger.debug("服务层/编解码组件已创建")
+
         runtime_state = XmppRuntimeStateManager(
             gateway_capability=self._gateway_capability,
-            logger=self._logger,
+            logger=logger,
             gateway_name=self._gateway_name,
         )
         heartbeat_monitor = XmppHeartbeatMonitor(
-            logger=self._logger,
+            logger=logger,
             on_timeout=on_heartbeat_timeout,
         )
         outbound_codec = XmppOutboundCodec()
+        logger.debug("状态管理/心跳组件已创建")
 
-        return XmppRuntimeBundle(
+        bundle = XmppRuntimeBundle(
             action_service=action_service,
             chat_filter=chat_filter,
             heartbeat_monitor=heartbeat_monitor,
@@ -83,3 +91,5 @@ class XmppRuntimeBuilder:
             runtime_state=runtime_state,
             transport=transport,
         )
+        logger.debug("XmppRuntimeBuilder.build() 完成: 运行时组件已组装")
+        return bundle

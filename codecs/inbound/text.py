@@ -12,6 +12,9 @@ from ...types import XmppSegments
 class XmppInboundTextMixin:
     """封装入站纯文本与二进制辅助逻辑。"""
 
+    # 日志对象，子类（XmppInboundCodec）在 __init__ 中设置
+    _logger: Any
+
     def build_plain_text(self, raw_message: XmppSegments) -> str:
         """从标准消息段中提取可展示的纯文本。
 
@@ -24,6 +27,7 @@ class XmppInboundTextMixin:
         plain_text_parts: list[str] = []
         for item in raw_message:
             if not isinstance(item, Mapping):
+                self._logger.debug(f"build_plain_text 跳过非 Mapping 项: {type(item)}")
                 continue
             item_type = str(item.get("type") or "").strip()
             item_data = item.get("data")
@@ -39,9 +43,17 @@ class XmppInboundTextMixin:
                     plain_text_parts.append(f"@{at_target_name}")
             elif item_type in {"image", "emoji", "voice"}:
                 plain_text_parts.append(f"[{item_type}]")
+            else:
+                self._logger.debug(
+                    f"build_plain_text 遇到未处理的段类型: {item_type}"
+                )
 
         plain_text = "".join(part for part in plain_text_parts if part).strip()
-        return plain_text or "[empty]"
+        result = plain_text or "[empty]"
+        self._logger.debug(
+            f"build_plain_text: {len(raw_message)} 段 -> {len(result)} 字符"
+        )
+        return result
 
     @staticmethod
     def _encode_binary(binary_data: bytes) -> str:

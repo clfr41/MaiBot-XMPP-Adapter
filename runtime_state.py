@@ -59,6 +59,7 @@ class XmppRuntimeStateManager:
 
         normalized_account_id = str(account_id).strip()
         if not normalized_account_id:
+            self._logger.warning("runtime_state.report_connected: account_id 为空")
             return False
 
         scope = server_config.connection_id or None
@@ -67,8 +68,16 @@ class XmppRuntimeStateManager:
             and self._reported_account_id == normalized_account_id
             and self._reported_scope == scope
         ):
+            self._logger.debug(
+                f"runtime_state 重复上报跳过: account={normalized_account_id} "
+                f"scope={scope or '*'}"
+            )
             return True
 
+        self._logger.debug(
+            f"runtime_state 上报连接就绪: account={normalized_account_id} "
+            f"scope={scope or '*'}"
+        )
         accepted = False
         try:
             accepted = await self._gateway_capability.update_state(
@@ -104,10 +113,14 @@ class XmppRuntimeStateManager:
         """向 Host 上报当前连接已断开，并撤销消息网关路由。"""
 
         if not self._runtime_state_connected:
+            had_previous = self._reported_account_id is not None
             self._reported_account_id = None
             self._reported_scope = None
+            if had_previous:
+                self._logger.debug("runtime_state 已处于断开状态，跳过重复上报")
             return
 
+        self._logger.debug("runtime_state 上报连接断开")
         try:
             await self._gateway_capability.update_state(
                 gateway_name=self._gateway_name,
@@ -120,3 +133,4 @@ class XmppRuntimeStateManager:
             self._runtime_state_connected = False
             self._reported_account_id = None
             self._reported_scope = None
+            self._logger.debug("runtime_state 断开状态已清除")

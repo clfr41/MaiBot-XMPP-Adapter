@@ -35,16 +35,21 @@ class XmppNoticeCodec:
         Returns:
             Optional[XmppPayloadDict]: 成功时返回标准 ``MessageDict``；无法识别时返回 ``None``。
         """
+        # 安全展开 payload，避免 payload 中的键意外覆盖 notice_type
+        safe_payload = dict(payload)
+        safe_payload.pop("notice_type", None)  # 排除冲突键
         notice_text = self._renderer.build_notice_text(
-            {"notice_type": notice_type, **payload}
+            {"notice_type": notice_type, **safe_payload}
         )
         if not notice_text:
+            self._logger.debug(f"通知事件被跳过: notice_type={notice_type} (渲染器返回空)")
             return None
 
         from_jid = str(payload.get("from_jid") or "").strip()
+        user_nickname = from_jid.split("@")[0] if "@" in from_jid else from_jid or "系统通知"
         user_info = {
             "user_id": from_jid or "system",
-            "user_nickname": from_jid.split("@")[0] if "@" in from_jid else from_jid or "系统通知",
+            "user_nickname": user_nickname,
             "user_cardname": None,
         }
 
@@ -53,9 +58,15 @@ class XmppNoticeCodec:
         }
 
         timestamp_seconds = time.time()
+        message_id = f"xmpp-notice-{uuid4().hex}"
+
+        self._logger.debug(
+            f"通知事件编码完成: notice_type={notice_type} "
+            f"from={from_jid} text_len={len(notice_text)}"
+        )
 
         return {
-            "message_id": f"xmpp-notice-{uuid4().hex}",
+            "message_id": message_id,
             "timestamp": str(float(timestamp_seconds)),
             "platform": "xmpp",
             "message_info": {
