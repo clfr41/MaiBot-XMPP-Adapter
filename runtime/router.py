@@ -96,9 +96,15 @@ class XmppEventRouter:
         settings = self._load_settings()
         self_id = runtime.transport.bare_jid
 
+        # 提取 MUC 昵称用于自身消息检测
+        muc_nickname = (
+            settings.xmpp_server.muc_nickname.strip()
+            or (settings.xmpp_server.jid.split("@")[0] if "@" in settings.xmpp_server.jid else "")
+        )
+
         # 过滤管道（步骤 1-5: 验证 JID/body、解析、自身消息、聊天名单）
         ctx = runtime.filter_pipeline.run(
-            payload, is_group, self_id, settings.filters, settings.chat
+            payload, is_group, self_id, settings.filters, settings.chat, muc_nickname
         )
         if ctx is None:
             return

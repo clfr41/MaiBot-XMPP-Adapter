@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional
 import asyncio
 import contextlib
 import ssl
-import weakref
 
 from .config import XmppServerConfig
 
@@ -54,12 +53,15 @@ if SLIXMPP_AVAILABLE:
             self.register_plugin("xep_0030")  # Service Discovery
             self.register_plugin("xep_0045")  # Multi-User Chat (MUC)
             self.register_plugin("xep_0199")  # XMPP Ping
+            self.register_plugin("xep_0203")  # Delayed Delivery (离线消息延迟投递检测)
             logger.debug("XMPP 客户端插件注册完成")
 
             # 注册事件处理器
+            # 注：只注册 "message" 事件。slixmpp 的 "groupchat_message" 与 "message"
+            # 对群聊消息会同时触发，导致每条 MUC 消息被处理两次。
+            # 改为统一由 _on_message 处理，根据 msg["type"] 区分 chat/groupchat。
             self.add_event_handler("session_start", self._on_session_start)
             self.add_event_handler("message", self._on_message)
-            self.add_event_handler("groupchat_message", self._on_groupchat_message)
             self.add_event_handler("muc::*::got_online", self._on_muc_presence)
             self.add_event_handler("disconnected", self._on_disconnected)
             self.add_event_handler("failed_auth", self._on_failed_auth)
@@ -120,8 +122,29 @@ if SLIXMPP_AVAILABLE:
                     transport._logger.error(f"加入 MUC 房间 {room} 失败: {exc}")
 
         def _on_message(self, msg: Any) -> None:
-            """处理入站消息（私聊/群聊）。"""
+            """处理入站消息（私聊/群聊）。
+
+            同时处理 ``chat`` 和 ``groupchat`` 类型的消息。
+            ``groupchat_message`` 事件在 slixmpp 中与 ``message`` 事件
+            对群聊消息会同时触发，因此不单独注册群聊事件处理器，
+            统一由本方法处理。
+            """
             transport = self._adapter_transport
+
+            # ── 延迟投递/离线消息检测 (XEP-0203) ──
+            # 连接建立后 XMPP 服务器可能会投递 bot 离线期间累积的旧消息。
+            # 这些消息带有 <delay> 元素，应丢弃以避免主机收到过期内容。
+            try:
+                delay = msg["delay"]
+                if delay and delay.get("stamp"):
+                    transport._logger.debug(
+                        f"丢弃延迟投递的旧消息: type={msg['type']} "
+                        f"from={msg['from']} stamp={delay['stamp']}"
+                    )
+                    return
+            except Exception:
+                pass
+
             msg_type = str(msg["type"])
             msg_id = str(msg["id"]) if msg["id"] else "(无 ID)"
             transport._logger.debug(
@@ -141,14 +164,6 @@ if SLIXMPP_AVAILABLE:
                 name="xmpp_adapter.on_message",
                 debug_info=f"msg_type={msg_type} from={payload['from_jid']}",
             )
-
-        def _on_groupchat_message(self, msg: Any) -> None:
-            """群聊消息直接复用普通消息处理。"""
-            transport = self._adapter_transport
-            transport._logger.debug(
-                f"收到 XMPP 群聊消息: from={msg['from']} id={msg['id']}"
-            )
-            self._on_message(msg)
 
         def _on_muc_presence(self, presence: Any) -> None:
             """MUC 出席事件（仅记录日志）。"""

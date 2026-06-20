@@ -1,9 +1,9 @@
 ```markdown
-# XMPP 适配器插件 (maibot-xmpp-adapter) v0.1.4
+# XMPP 适配器插件 (maibot-xmpp-adapter) v0.1.5
 
 > **让 MaiBot 通过 XMPP 协议收发消息。**
 >
-> 这是一个**实验性质的原型工具**（0.1.4 早期测试版）。使用前请务必阅读本文档的全部内容，尤其是安全警告、免责声明和已知问题。
+> 这是一个**实验性质的原型工具**（0.1.5 早期测试版）。使用前请务必阅读本文档的全部内容，尤其是安全警告、免责声明和已知问题。
 
 --
 
@@ -41,7 +41,7 @@ uv pip install slixmpp
 
 ### 🛡️ 安全警告
 
-**本插件为早期测试版本（0.1.4），功能有限且可能存在未知 BUG。您必须了解以下全部风险：**
+**本插件为早期测试版本（0.1.5），功能有限且可能存在未知 BUG。您必须了解以下全部风险：**
 
 1. **通信安全风险**：当前测试版本 **TLS 默认已启用**（0.1.2 起默认值从 `false` 改为 `true`），但测试环境常用自签名证书，因此本插件默认**跳过证书验证**（`CERT_NONE`），存在中间人攻击风险。如使用 5223 端口会自动切换旧式 SSL。
 
@@ -53,13 +53,13 @@ uv pip install slixmpp
    - **在线状态**：在线状态检测仅依赖传输层 TCP 连接状态，可能导致误判离线或在特定网络环境下状态不同步。
    - 更多未测试或已知缺陷请见"已知问题与限制"章节。
 
-4. **代码质量风险**：本适配器基于 napcat-adapter 架构改造而来，**尽管 0.1.4 已重构服务层、过滤管道、消除死代码和日志泄露**，但仍可能有未发现的问题。**不建议在生产环境或重要聊天中使用。**
+4. **代码质量风险**：本适配器基于 napcat-adapter 架构改造而来，**尽管 0.1.5 已修复 MUC 消息双发、离线消息过滤、自身消息检测等核心问题**，但仍可能有未发现的问题。**不建议在生产环境或重要聊天中使用。**
 
 5. **XMPP 服务器兼容性**：仅在与 Openfire 5.x 的有限测试中验证了基本消息收发。其他 XMPP 服务器（如 Prosody、Ejabberd）未经测试，可能出现协议不兼容、认证失败、TLS 协商失败等问题。
 
 6. **无访问控制**：当前版本未实现操作员白名单或命令权限控制。任何能连接到该机器人的 XMPP 用户都可能触发机器人回复，存在被滥用风险。
 
-7. **无升级兼容承诺**：本插件为 0.1.4 早期测试版，配置结构、代码接口和行为可能在后续版本中发生**重大不兼容变化**，且不提供迁移工具。
+7. **无升级兼容承诺**：本插件为 0.1.5 早期测试版，配置结构、代码接口和行为可能在后续版本中发生**重大不兼容变化**，且不提供迁移工具。
 
 ### 📜 免责声明
 
@@ -94,7 +94,7 @@ pip install slixmpp
 ```toml
 [plugin]
 enabled = true
-config_version = "0.1.4"
+config_version = "0.1.5"
 slixmpp_log_level = "INFO"
 
 [xmpp_server]
@@ -142,7 +142,7 @@ bot:
 
 ---
 
-## ⚠️ 已知问题与限制（0.1.4）
+## ⚠️ 已知问题与限制（0.1.5）
 
 由于处于早期测试阶段，本插件仍存在一些已知问题和功能缺失：
 
@@ -150,26 +150,21 @@ bot:
 |------|------|------|
 | **不支持非文本消息** | 无法接收或发送图片、文件、语音、表情等。收到非文本消息可能被丢弃或导致解析错误。 | 只能进行纯文本对话，多媒体功能完全不可用 |
 | **群聊功能不完善** | 加入 MUC、收发群消息可能存在 BUG，例如无法自动加入房间、收到群消息异常、无法正确解析发送者等。 | 群聊场景不推荐使用 |
-| **在线状态** | 在线状态检测仅依赖传输层 TCP 连接状态，网络波动时可能长时间不探测，导致状态不一致。 | 机器人可能已断开但不感知，或误以为在线实则断连 |
-| **TLS/SSL 证书跳过验证**（默认关闭） | 默认 `tls_verify = false` 跳过证书验证，但新增了 `tls_verify = true` 配置项，生产环境可启用严格验证。 | 默认仍有中间人攻击风险，但可通过配置消除 |
-| **未知消息类型处理不完整** | 仅处理 `chat` 和 `groupchat` 消息。`headline`、`error` 等其他类型仅记录日志后丢弃。 | 某些 XMPP 特性可能未被正确利用 |
 
-### ✅ 0.1.2 已修复
+### ✅ 0.1.5 已修复
 | 问题 | 修复内容 |
 |------|----------|
-| **asyncio task 泄漏** | 所有 fire-and-forget task 已改为 `_safe_create_task`，带异常日志 + lifecycle tracking；`stop()` 时统一 cancel 所有 pending task |
-| **异常被静默吞噬** | `handle_xmpp_gateway` 按 `ValueError` / `RuntimeError` / `CancelledError` / 兜底四级分别处理 |
-| **心跳超时误报** | 残留心跳日志已清理，`heartbeat_monitor` 所有方法的注释明确标为禁用 |
-| **错误恢复** | 重连循环的异常处理已完善，断开回调改为幂等守卫 |
-| **TLS 逻辑混乱** | `_configure_tls` 明确区分 `use_ssl`（端口 5223）和 `use_tls`（STARTTLS），TLS 默认启用并输出安全警告日志 |
-| **封装破坏** | `XmppQueryService.get_self_info` 不再穿透访问 `_action_service._transport` 私有属性 |
+| **自身消息被自己处理** | ① 移除 `groupchat_message` 事件注册，消除 MUC 消息双发；② 修复 filter pipeline 自身的消息检测，MUC 改用 nickname 而非 bare JID 比较 |
+| **登录后获取到过期消息** | 注册 `xep_0203` 插件，`_on_message` 开头检测 `<delay>` 元素，离线消息直接丢弃 |
 
-### ✅ 0.1.3 已修复
+### ✅ 0.1.4 已修复
 | 问题 | 修复内容 |
 |------|----------|
-| **presence/IQ 空消息污染** | `_on_presence_or_iq` 重命名为 `_on_non_message_stanza`，不再将非消息 stanza 送入消息处理管道；router 新增 body 空值守卫，兜底过滤无内容的入站消息 |
-| **TLS 证书验证无配置选项** | 新增 `tls_verify` 配置项（默认 false），允许用户在生产环境启用证书严格验证 |
-| **manifest 声明缺失** | 补全 `dependencies`（slixmpp）和 `capabilities`（message_gateway + api）声明 |
+| **服务层冗余** | `XmppQueryService` 合并至 `XmppActionService`，消除三层无意义转发 |
+| **死代码** | 完全移除 `heartbeat_monitor.py`（所有方法为空实现）|
+| **日志泄露** | `slixmpp` 日志级别改为配置驱动，默认 `INFO` 不再暴露 stanza 内容 |
+| **密码持留** | 传输层密码副本 `stop()` 时手动清零 |
+| **代码整洁** | 移除 4 个未使用类型别名、未使用 import、重复 docstring |
 
 **此外，未列出的其他潜在 BUG 和稳定性问题随时可能发生。**
 
@@ -182,7 +177,7 @@ bot:
 ```toml
 [plugin]
 enabled = true
-config_version = "0.1.4"
+config_version = "0.1.5"
 slixmpp_log_level = "INFO"
 
 [xmpp_server]
@@ -238,7 +233,8 @@ regex_filter_show_dropped = false
 | 0.1.1 | 2026-06 | 部分修复了群组问题，更新了 config，现在可以通过 config 设置来加入群组。 |
 | 0.1.2 | 2026-06 | 修复：asyncio task 泄漏（统一追踪+清理）；异常处理分级（ValueError/RuntimeError/CancelledError）；通知编解码 payload key 覆盖；TLS 默认启用+逻辑重构；心跳死代码清理；服务层封装性修复；全面添加 debug 日志。 |
 | 0.1.3 | 2026-06 | 修复：presence/IQ stanza 被错误送入消息处理管道导致空消息污染；router 新增 body 空值守卫兜底过滤；新增 `tls_verify` 配置项，允许生产环境启用证书验证；补全 manifest 中 slixmpp 依赖和 capabilities 声明。 |
-| 0.1.4 | 2026-06 | **重构：** 服务层合并（`XmppQueryService` 合并至 `XmppActionService`，消除冗余抽象层）；出站动作派发去重（`_dispatch_outbound_action` 委托给 `action_service`）；入站过滤管道抽取为 `XmppInboundFilterPipeline` 独立类；**移除：** 完全移除 `heartbeat_monitor.py` 全部死代码（builder/router/plugin 关联调用点一并清理）；**安全：** `slixmpp` 日志级别改为配置驱动（`slixmpp_log_level`，默认 `INFO`，非调试不再暴露 stanza 内容）；传输层密码副本隔离 + `stop()` 时清零；`config_version` 同步至 `0.1.4`；**清理：** `types.py` 移除 4 个未使用类型别名；移除 `inbound_codec` 中未使用的 `query_service` 参数；修复重复 docstring、未使用 import 等代码整洁问题。 |
+| 0.1.4 | 2026-06 | **重构：** 服务层合并（`XmppQueryService` 合并至 `XmppActionService`）；出站动作派发去重；入站过滤管道抽取为独立类；**移除：** 完全移除 `heartbeat_monitor.py`；**安全：** `slixmpp` 日志级别改为配置驱动（默认 `INFO`）；传输层密码副本 `stop()` 时清零；**清理：** 移除未使用类型别名、未使用 import、重复 docstring。 |
+| 0.1.5 | 2026-06 | **修复：** MUC 消息双发（移除 `groupchat_message` 事件注册）；MUC 自身消息检测（filter pipeline 改用 nickname 比较）；登录后过期消息（新增 `xep_0203` 延迟投递检测）。 |
 
 ---
 
@@ -248,6 +244,6 @@ regex_filter_show_dropped = false
 
 ---
 
-> **再次强调**：本插件为 0.1.4 早期测试版，**请勿用于生产环境**。使用即代表您已完全理解并接受上述所有风险与免责声明。
+> **再次强调**：本插件为 0.1.5 早期测试版，**请勿用于生产环境**。使用即代表您已完全理解并接受上述所有风险与免责声明。
 > 如有疑问或反馈，请通过项目渠道联系开发者。
 ```

@@ -1,6 +1,6 @@
 [plugin]
 enabled = true
-config_version = "0.1.4"
+config_version = "0.1.5"
 slixmpp_log_level = "INFO"
 
 [xmpp_server]

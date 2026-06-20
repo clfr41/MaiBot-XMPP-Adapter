@@ -56,6 +56,7 @@ class XmppInboundFilterPipeline:
         self_id: str,
         settings_filters: XmppFilterConfig,
         settings_chat: XmppChatConfig,
+        muc_nickname: str = "",
     ) -> Optional[InboundMessageContext]:
         """执行完整过滤管道。
 
@@ -65,6 +66,7 @@ class XmppInboundFilterPipeline:
             self_id: 当前机器人 bare JID。
             settings_filters: 插件过滤配置。
             settings_chat: 插件聊天名单配置。
+            muc_nickname: 机器人在 MUC 房间中的昵称，用于 MUC 自身消息检测。
 
         Returns:
             过滤通过时返回 ``InboundMessageContext``，被拦截时返回 ``None``。
@@ -95,9 +97,22 @@ class XmppInboundFilterPipeline:
             group_jid = ""
 
         # ── Step 4: 自身消息过滤 ──
-        if self_id and sender_jid == self_id and settings_filters.ignore_self_message:
-            self._logger.debug(f"忽略自身消息: sender={sender_jid} == self={self_id}")
-            return None
+        if settings_filters.ignore_self_message:
+            if is_group:
+                # MUC 消息的 sender_jid 是 nickname（如 "maibot"），
+                # 需要与配置的 MUC 昵称比较，不能与 bare JID 比较。
+                if muc_nickname and sender_jid == muc_nickname:
+                    self._logger.debug(
+                        f"忽略自身 MUC 消息: sender={sender_jid} == muc_nickname={muc_nickname}"
+                    )
+                    return None
+            else:
+                # 私聊消息的 sender_jid 是 bare JID，与自身 JID 比较。
+                if self_id and sender_jid == self_id:
+                    self._logger.debug(
+                        f"忽略自身私聊消息: sender={sender_jid} == self={self_id}"
+                    )
+                    return None
 
         # ── Step 5: 聊天名单过滤 ──
         if not self._chat_filter.is_inbound_chat_allowed(sender_jid, group_jid, settings_chat):
@@ -106,7 +121,6 @@ class XmppInboundFilterPipeline:
             )
             return None
 
-        # ── Step 4-5 最终缓存 ──
         self._logger.debug(f"过滤管道通过: sender={sender_jid} group={group_jid or '(私聊)'}")
 
         return InboundMessageContext(
